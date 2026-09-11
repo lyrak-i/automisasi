@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Aplikasi web automasi Berita Acara dari data Excel dan PDF pelengkap ke dalam template Word. 100% Native Browser Client-Side tanpa backend server.">
+    <title>Automasi Berita Acara | 100% Client-Side Native Web</title>
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- External CSS -->
+    <link rel="stylesheet" href="static/style.css">
+
+    <!-- External Libraries: 100% Native Browser JavaScript (PDF.js, SheetJS, JSZip, Nunjucks) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nunjucks/3.2.4/nunjucks.min.js"></script>
+</head>
+<body>
+
+<!-- Loading Overlay -->
+<div id="loading-overlay" class="loading-overlay" aria-hidden="true">
+    <div class="large-spinner"></div>
+    <h2 id="overlay-title">Memproses Dokumen...</h2>
+    <p id="overlay-status">Mohon tunggu. Sistem sedang memproses data di memori peramban Anda.</p>
+</div>
+
+<div class="page">
+    <header class="hero">
+        <div class="badge-tag">100% Client-Side &bull; Native JavaScript &bull; Privasi Aman</div>
+        <h1>Automasi Berita Acara</h1>
+        <p>Gabungkan data Excel dan PDF pelengkap ke dalam template Word langsung di peramban Anda. Dokumen diproses secara lokal di RAM komputer tanpa pernah dikirim ke internet.</p>
+        
+        <!-- Engine Status Indicator -->
+        <div id="engine-status-pill" class="engine-status ready" role="status">
+            <span class="engine-dot" aria-hidden="true"></span>
+            <span id="engine-status-text">Engine Native Siap (100% Client-Side)</span>
+        </div>
+    </header>
+
+    <main class="card">
+        <!-- Quick Template Download Bar -->
+        <div class="quick-download-bar">
+            <span>💡 Perlu berkas template untuk uji coba?</span>
+            <div class="quick-links">
+                <a href="contoh/template_berita_acara.docx" download="template_berita_acara.docx" class="quick-link-btn" title="Unduh contoh template Word">
+                    📄 Template Word (.docx)
+                </a>
+                <a href="contoh/contoh_excel.xlsx" download="contoh_excel.xlsx" class="quick-link-btn" title="Unduh contoh file Excel">
+                    📊 Contoh Excel (.xlsx)
+                </a>
+            </div>
+        </div>
+
+        <!-- Session History Banner (LocalStorage) -->
+        <div id="session-history-banner" class="session-history" style="display: none;" role="status">
+            <div class="history-content">
+                <span class="history-icon" aria-hidden="true">🕒</span>
+                <div class="history-details" id="history-details">
+                    <!-- Diisi otomatis oleh JavaScript -->
+                </div>
+            </div>
+            <button type="button" id="clear-history-btn" class="btn-clear-history" title="Hapus riwayat sesi">&times;</button>
+        </div>
+
+        <!-- Alert Container -->
+        <div id="client-alert" class="alert" style="display: none;" role="alert">
+            <span aria-hidden="true">⚠️</span>
+            <span id="client-alert-msg"></span>
+        </div>
+
+        <form id="ba-form" novalidate>
+
+            <!-- Step 1: Uploads -->
+            <fieldset>
+                <legend><span class="step" aria-hidden="true">1</span> Unggah Berkas</legend>
+                <div class="field-grid uploads">
+                    <div class="form-group">
+                        <span class="field-caption">Excel (.xlsx)</span>
+                        <label class="file-drop" for="excel_file" id="drop-excel">
+                            <input type="file" id="excel_file" name="excel_file" accept=".xlsx" required>
+                            <span class="icon" aria-hidden="true">📊</span>
+                            <span class="label-main">Pilih atau Tarik File Excel</span>
+                            <span class="label-sub" data-filename-for="excel_file">Belum ada file dipilih</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <span class="field-caption">Template Word (.docx)</span>
+                        <label class="file-drop" for="word_template" id="drop-word">
+                            <input type="file" id="word_template" name="word_template" accept=".docx" required>
+                            <span class="icon" aria-hidden="true">📄</span>
+                            <span class="label-main">Pilih atau Tarik Template Word</span>
+                            <span class="label-sub" data-filename-for="word_template">Belum ada file dipilih</span>
+                        </label>
+                    </div>
+                    <div class="form-group full">
+                        <span class="field-caption">File PDF Pelengkap (bisa pilih banyak berkas sekaligus)</span>
+                        <label class="file-drop" for="pdf_files" id="drop-pdf">
+                            <input type="file" id="pdf_files" name="pdf_files" accept=".pdf" multiple required>
+                            <span class="icon" aria-hidden="true">📎</span>
+                            <span class="label-main">Pilih atau Tarik Berkas-Berkas PDF</span>
+                            <span class="label-sub" data-filename-for="pdf_files">Belum ada file dipilih</span>
+                        </label>
+                    </div>
+                </div>
+            </fieldset>
+
+            <!-- Step 2: Filter Settings -->
+            <fieldset>
+                <legend><span class="step" aria-hidden="true">2</span> Pengaturan Filter Utama</legend>
+                <div class="field-grid">
+                    <div class="form-group">
+                        <label for="col_kode">Nama Kolom untuk Filter</label>
+                        <input type="text" id="col_kode" name="col_kode" value="Kode" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="val_kode">Nilai yang Dicari</label>
+                        <input type="text" id="val_kode" name="val_kode" value="PS" required>
+                    </div>
+                </div>
+            </fieldset>
+
+            <!-- Step 3: Column Mapping -->
+            <fieldset>
+                <legend><span class="step" aria-hidden="true">3</span> Pemetaan Kolom Excel</legend>
+                <p class="hint">Sesuaikan nama kolom berikut dengan header baris kedua di file Excel Anda.</p>
+                <div class="field-grid">
+                    <div class="form-group">
+                        <label for="col_no_frbmr">Kolom No. FRBMR</label>
+                        <input type="text" id="col_no_frbmr" name="col_no_frbmr" value="No. FRBMR" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="col_deskripsi_frbmr">Kolom Deskripsi FRBMR</label>
+                        <input type="text" id="col_deskripsi_frbmr" name="col_deskripsi_frbmr" value="Deskripsi FRBMR" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="col_desk_pekerjaan">Kolom Deskripsi Pekerjaan</label>
+                        <input type="text" id="col_desk_pekerjaan" name="col_desk_pekerjaan" value="Deskripsi Pekerjaan" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="col_qtty">Kolom QTTY</label>
+                        <input type="text" id="col_qtty" name="col_qtty" value="Qtty" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="col_uom">Kolom UOM</label>
+                        <input type="text" id="col_uom" name="col_uom" value="UoM" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="col_sl_nonsl">Kolom SL / NON SL</label>
+                        <input type="text" id="col_sl_nonsl" name="col_sl_nonsl" value="SL/Non SL" required>
+                    </div>
+                    <div class="form-group full">
+                        <label for="col_harga">Kolom Total Harga Cash In</label>
+                        <input type="text" id="col_harga" name="col_harga" value="Total Harga Cash In" required>
+                    </div>
+                </div>
+            </fieldset>
+
+            <!-- Actions -->
+            <div class="actions">
+                <button type="submit" class="btn-submit" id="submit-btn">
+                    <span class="spinner" aria-hidden="true"></span>
+                    <span class="btn-text">Proses &amp; Unduh Dokumen</span>
+                </button>
+                <a href="#" class="btn-reset" id="btn-reset-form">Ulangi dari Awal (Reset Formulir)</a>
+            </div>
+        </form>
+    </main>
+
+    <footer class="note">
+        Diproses 100% di browser Anda menggunakan Native JavaScript (SheetJS, JSZip, Nunjucks, PDF.js). Tidak ada data yang diunggah ke internet.<br>
+        Hosting siap pakai untuk GitHub Pages.
+    </footer>
+</div>
+
+<!-- Client-side Document Automation Engine -->
+<script src="static/processor.js"></script>
+
+<script>
+    (function () {
+        var form = document.getElementById('ba-form');
+        var submitBtn = document.getElementById('submit-btn');
+        var btnText = submitBtn.querySelector('.btn-text');
+        var overlay = document.getElementById('loading-overlay');
+        var overlayTitle = document.getElementById('overlay-title');
+        var overlayStatus = document.getElementById('overlay-status');
+        var alertBox = document.getElementById('client-alert');
+        var alertMsg = document.getElementById('client-alert-msg');
+        var enginePill = document.getElementById('engine-status-pill');
+        var engineStatusText = document.getElementById('engine-status-text');
+
+        var banner = document.getElementById('session-history-banner');
+        var historyDetails = document.getElementById('history-details');
+        var clearHistoryBtn = document.getElementById('clear-history-btn');
+
+        function showAlert(msg) {
+            alertMsg.textContent = msg;
+            alertBox.style.display = 'flex';
+            alertBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        function hideAlert() {
+            alertBox.style.display = 'none';
+        }
+
+        // Tampilkan banner histori sesi terakhir
+        function updateHistoryDisplay() {
+            var lastExcel = localStorage.getItem('ba_last_excel');
+            var lastWord = localStorage.getItem('ba_last_word');
+            var lastPdfCount = localStorage.getItem('ba_last_pdf_count');
+            var lastTime = localStorage.getItem('ba_last_time');
+
+            if (lastExcel || lastWord) {
+                var html = '<strong>Sesi Terakhir:</strong> ';
+                if (lastExcel) html += 'Excel: <span class="history-tag">' + escapeHtml(lastExcel) + '</span> ';
+                if (lastWord) html += 'Template: <span class="history-tag">' + escapeHtml(lastWord) + '</span> ';
+                if (lastPdfCount) html += '<span class="history-tag">' + escapeHtml(lastPdfCount) + ' PDF</span> ';
+                if (lastTime) html += '<span class="history-time">(' + escapeHtml(lastTime) + ')</span>';
+                historyDetails.innerHTML = html;
+                banner.style.display = 'flex';
+            } else {
+                banner.style.display = 'none';
+            }
+        }
+
+        function saveHistory(excelName, wordName, pdfCount) {
+            var now = new Date();
+            var dateStr = now.toLocaleDateString('id-ID') + ', ' + now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
+
+            localStorage.setItem('ba_last_excel', excelName);
+            localStorage.setItem('ba_last_word', wordName);
+            localStorage.setItem('ba_last_pdf_count', pdfCount);
+            localStorage.setItem('ba_last_time', dateStr);
+
+            updateHistoryDisplay();
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>"']/g, function (m) {
+                return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'}[m];
+            });
+        }
+
+        // Hapus histori
+        clearHistoryBtn.addEventListener('click', function () {
+            localStorage.removeItem('ba_last_excel');
+            localStorage.removeItem('ba_last_word');
+            localStorage.removeItem('ba_last_pdf_count');
+            localStorage.removeItem('ba_last_time');
+            banner.style.display = 'none';
+        });
+
+        // Persistensi Kolom Pengaturan Form
+        var formFieldIds = [
+            'col_kode', 'val_kode', 'col_no_frbmr', 'col_deskripsi_frbmr',
+            'col_desk_pekerjaan', 'col_qtty', 'col_uom', 'col_sl_nonsl', 'col_harga'
+        ];
+
+        formFieldIds.forEach(function (id) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            var saved = localStorage.getItem('ba_setting_' + id);
+            if (saved !== null && saved.trim() !== '') {
+                el.value = saved;
+            }
+            el.addEventListener('input', function () {
+                localStorage.setItem('ba_setting_' + id, el.value);
+            });
+        });
+
+        updateHistoryDisplay();
+
+        // Validasi engine browser
+        if (window.DocAutomation && window.pdfjsLib && window.XLSX && window.JSZip && window.nunjucks) {
+            enginePill.classList.add('ready');
+            engineStatusText.textContent = 'Engine Native Siap (100% Client-Side)';
+        } else {
+            enginePill.classList.remove('ready');
+            engineStatusText.textContent = 'Memverifikasi pustaka...';
+            window.addEventListener('load', function () {
+                if (window.DocAutomation && window.pdfjsLib && window.XLSX && window.JSZip && window.nunjucks) {
+                    enginePill.classList.add('ready');
+                    engineStatusText.textContent = 'Engine Native Siap (100% Client-Side)';
+                } else {
+                    enginePill.classList.add('error');
+                    engineStatusText.textContent = 'Gagal memuat pustaka native';
+                }
+            });
+        }
+
+        // File drop change indicator & drag-and-drop feedback
+        document.querySelectorAll('.file-drop').forEach(function (dropLabel) {
+            var input = dropLabel.querySelector('input[type="file"]');
+            var target = dropLabel.querySelector('[data-filename-for="' + input.id + '"]');
+
+            function refreshLabel() {
+                if (!input.files || input.files.length === 0) {
+                    target.textContent = 'Belum ada file dipilih';
+                    dropLabel.classList.remove('has-file');
+                } else if (input.files.length === 1) {
+                    target.textContent = input.files[0].name;
+                    dropLabel.classList.add('has-file');
+                } else {
+                    target.textContent = input.files.length + ' file dipilih';
+                    dropLabel.classList.add('has-file');
+                }
+            }
+
+            input.addEventListener('change', refreshLabel);
+
+            // Drag and drop visual feedback
+            ['dragenter', 'dragover'].forEach(function (eventName) {
+                dropLabel.addEventListener(eventName, function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropLabel.classList.add('dragover');
+                });
+            });
+
+            ['dragleave', 'drop'].forEach(function (eventName) {
+                dropLabel.addEventListener(eventName, function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropLabel.classList.remove('dragover');
+                });
+            });
+
+            dropLabel.addEventListener('drop', function (e) {
+                if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    input.files = e.dataTransfer.files;
+                    refreshLabel();
+                }
+            });
+        });
+
+        // Reset form
+        document.getElementById('btn-reset-form').addEventListener('click', function (e) {
+            e.preventDefault();
+            formFieldIds.forEach(function (id) {
+                localStorage.removeItem('ba_setting_' + id);
+            });
+            window.location.reload();
+        });
+
+        // Submit Form Handler (100% Client-Side Native Processing)
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            hideAlert();
+
+            var excelFile = document.getElementById('excel_file').files[0];
+            var wordTemplate = document.getElementById('word_template').files[0];
+            var pdfFiles = Array.from(document.getElementById('pdf_files').files || []);
+
+            if (!excelFile) {
+                showAlert('Silakan pilih file Excel (.xlsx).');
+                return;
+            }
+            if (!wordTemplate) {
+                showAlert('Silakan pilih file template Word (.docx).');
+                return;
+            }
+            if (!pdfFiles || pdfFiles.length === 0) {
+                showAlert('Silakan pilih minimal satu file PDF pelengkap.');
+                return;
+            }
+
+            var formValues = {};
+            for (var i = 0; i < formFieldIds.length; i++) {
+                var id = formFieldIds[i];
+                var val = document.getElementById(id).value.trim();
+                if (!val) {
+                    showAlert('Semua kolom pengaturan filter dan pemetaan wajib diisi.');
+                    return;
+                }
+                formValues[id] = val;
+            }
+
+            // Tampilkan loading overlay
+            overlay.classList.add('active');
+            submitBtn.classList.add('loading');
+            submitBtn.disabled = true;
+            btnText.textContent = 'Memproses...';
+            overlayTitle.textContent = 'Memproses Dokumen...';
+
+            function updateProgress(msg) {
+                overlayStatus.textContent = msg;
+            }
+
+            try {
+                // Eksekusi pemrosesan dokumen secara native di peramban
+                var outputBytes = await window.DocAutomation.runClientSideProcess(
+                    excelFile,
+                    wordTemplate,
+                    pdfFiles,
+                    formValues,
+                    updateProgress
+                );
+
+                // Buat Blob unduhan Word
+                var blob = new Blob([outputBytes], {
+                    type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                });
+                var downloadUrl = window.URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = downloadUrl;
+                var safeKode = formValues.val_kode.replace(/[^a-zA-Z0-9_-]/g, '_') || 'output';
+                a.download = 'Berita_Acara_Otomatis_' + safeKode + '.docx';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(downloadUrl);
+
+                // Simpan histori sesi
+                saveHistory(excelFile.name, wordTemplate.name, pdfFiles.length);
+
+            } catch (error) {
+                console.error('Processing Error:', error);
+                var msg = error.message || 'Terjadi kesalahan saat memproses data.';
+                showAlert(msg);
+            } finally {
+                overlay.classList.remove('active');
+                submitBtn.classList.remove('loading');
+                submitBtn.disabled = false;
+                btnText.textContent = 'Proses & Unduh Dokumen';
+            }
+        });
+    })();
+</script>
+</body>
+</html>
